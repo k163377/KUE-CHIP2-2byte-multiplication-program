@@ -1,0 +1,101 @@
+**ラベル
+*小さい方
+SMH: EQU 80h
+SML: EQU 81h
+*大きい方
+BGH: EQU 82h
+BGL: EQU 83h
+*答えが入る場所
+ASH: EQU 84h
+ASL: EQU 85h
+*計算結果の正負のFLG
+FLG: EQU 86h
+
+**符号検査
+*両方にFFを読んでおく、IXはACCからコピー
+	LD	ACC,0FFh
+	LD	IX, ACC
+*BGの正負判定、上の桁を反転してみて検査する
+	EOR	ACC,[BGH]
+*正の数を引くとNFが立っている
+	BN	SC
+*反転
+	ST	ACC,[BGH]
+*フラグセット、ここでやることでLDを減らしメモリ領域を確保
+	LD	ACC,01h
+	ST	ACC,[FLG]
+*下位反転、SRLで00hを作る
+	SRL	ACC
+	SUB	ACC,[BGL]
+	ST	ACC,[BGL]
+*SMの正負判定
+SC:	EOR	IX, [SMH]
+*正だったら交換の前準備へ
+	BN	IXL
+	ST	IX, [SMH]
+*フラグセット、ここでやることでLDを減らしメモリ領域を確保
+	LD	IX, 01h
+	EOR	IX, [FLG]
+	ST	IX, [FLG]
+*下位反転、1が入っていても0に、0が入っていても0になる
+	SRL	IX
+	SUB	IX, [SML]
+	BA	CMP
+IXL:	LD	IX, [SML]
+CMP:	LD	ACC,[SMH]
+	CMP	ACC,[BGH]
+	BN	CALC
+	BNZ	SWAP
+*下位
+	CMP	IX, [BGL]
+	BLE	CALC
+	BA	SWAPL
+*交換
+SWAP:	ST	ACC,[BGH]
+SWAPL:	LD	ACC,[BGL]
+	ST	IX, [BGL]
+	LD	IX,ACC
+
+*IXは既に乗数になっている前提で開始、最初のBZ判定は飛ばす
+CALC:	SRL	IX
+*キャリーが無いならそのままBをずらす
+	BNC	BS
+RCF:	RCF
+	LD	ACC,[BGL]
+	ADC	ACC,[ASL]
+	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ADC	ACC,[ASH]
+	ST	ACC,[ASH]
+*Bシフト
+BS:	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*2回目入るとこまで
+	SRL	IX
+	BZ	LAST
+	BNC	BS
+	BA	RCF
+
+*最終処理
+LAST:	BNC	CHKF
+	RCF
+	LD	ACC,[BGL]
+	ADC	ACC,[ASL]
+	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ADC	ACC,[ASH]
+*フラグチェック、IXには00hが入っている
+CHKF:	CMP	IX,[FLG]
+	BZ	ASST
+*反転開始
+	SUB	IX, [ASL]
+	ST	IX, [ASL]
+	EOR	ACC,0FFh
+ASST:	ST	ACC,[ASH]	
+	HLT
+
+END
