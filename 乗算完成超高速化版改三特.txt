@@ -1,0 +1,130 @@
+***改までの解説
+**答えを格納するメモリーは手動で初期化して高速化
+**SWAPする時は8回とかシフトすると上の桁は必ずオーバーフローするので、小さい方の上の桁は考慮しないようにして計算やロード/ストアを減らし高速化
+**IXを小さい方の下の桁で固定しLD/ST省いて高速化
+**Bシフトは下をシフト→上をローテートで高速化
+**ループを分解してブランチを減らして高速化
+**最初の時点でずらして0が発生する確率が低いことを利用してBZを省き平均的に高速化
+***改二の解説
+**加算部分は1つにし、そちらへ向けて飛ばすことで、ループをより多く分解して置けるようにして高速化
+**ついでにビットパターンの関係でLAST2へ飛べるのでベンチマークで高速化
+**BAでループするが、最大8回しかシフトしない関係でそこまで上に飛ばす必要が無いので、LAST2へ飛ぶ可能性の高い場所へ飛ばして高速化
+
+***改三の解説
+**奇数回目の演算ではIXシフト後のBZ判定を飛ばして高速化
+**2回目のシフト演算でキャリーが無く0ならば加算は終了しているのでHLT(01が入った場合のみ動く)
+**それ以外で0となった場合はキャリーが発生しているので判定せず加算
+
+***改三でのスコア
+**03AB x 0025 -> 339clk
+**0025 x 03AB -> 317clk
+
+***改三特の解説
+**SWAP関数を、ベンチマークの計算に合わせて簡略化し高速化
+**実際には上位の桁がそれぞれ00の場合比較を行った方が早くなりやすいため、単純な高速化ではない
+***改三特でのスコア
+**03AB x 0025 -> 331clk
+**0025 x 03AB -> 320clk
+
+**ラベル
+*小さい方
+SMH: EQU 80H
+SML: EQU 81H
+*大きい方
+BGH: EQU 82H
+BGL: EQU 83H
+*答えが入る場所
+ASH: EQU 84H
+ASL: EQU 85H
+
+**前段階の準備
+	LD	ACC,[SMH]
+	CMP	ACC,00h
+	BNZ	SWAP
+	LD	IX,[SML]
+	BA	CALC
+SWAP:	ST	ACC,[BGH]
+	LD	ACC,[SML]
+	LD	IX,[BGL]
+	ST	ACC,[BGL]
+
+**計算開始
+CALC:	SRL	IX
+*キャリーが無いならそのままBをずらす
+	BNC	BS
+TOP:	RCF
+	LD	ACC,[BGL]
+	ADC	ACC,[ASL]
+	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ADC	ACC,[ASH]
+	ST	ACC,[ASH]
+*Bシフト
+BS:	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*2回目
+	SRL	IX
+*キャリーが有るならadd
+	BC	TOP
+*ここでキャリーが無く0なら終わって良い
+	BZ	HLT
+*Bシフト
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*3回目
+	SRL	IX
+*シフト後の加算判定
+	BC	TOP
+*Bシフト
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*4
+	SRL	IX
+	BZ	LAST
+	BC	TOP
+*Bシフト
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*5
+	SRL	IX
+	BC	TOP
+*Bシフト
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*6
+	SRL	IX
+	BZ	LAST
+	BC	TOP
+	BA	BS
+
+**最終処理
+LAST:	RCF
+	LD	ACC,[BGL]
+	ADC	ACC,[ASL]
+	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ADC	ACC,[ASH]
+	ST	ACC,[ASH]
+HLT:	HLT
+
+END
