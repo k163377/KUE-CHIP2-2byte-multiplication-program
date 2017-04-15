@@ -1,1 +1,1 @@
-# KUE-CHIP2-2byte-
+# KUE-CHIP2-2byte-multiplication-program
