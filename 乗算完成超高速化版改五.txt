@@ -19,8 +19,8 @@
 *    その際、BS後のためACCには確定でBGHがLDされていることを利用し高速化
 
 * 改五でのスコア
-* 03AB x 0025:301[clock]
-* 0025 x 03AB:300[clock]
+* 03AB x 0025:297[clock]
+* 0025 x 03AB:296[clock]
 
 **ラベル
 *小さい方
@@ -47,6 +47,7 @@ LD2:	ST	ACC,[BGH]
 *初回の計算、ASLが0なのでストアのみ
 ADDF:	SRL	IX
 	BNC	BSF
+	BZ	ONE
 *加算有、BGHの関係でシフトを纏める
 	ST	ACC,[ASL]
 	SLL	ACC
@@ -62,10 +63,7 @@ BSF:	SLL	ACC
 	LD	ACC,[BGH]
 	RLA	ACC
 	ST	ACC,[BGH]
-*0乗算の計算が狂わないように対策
 SRHL:	SRL	IX
-	BC	ADD
-	BZ	HLT
 	BNC	BS
 ADD:	RCF
 	LD	ACC,[BGL]
@@ -107,7 +105,11 @@ BS:	LD	ACC,[BGL]
 	BZ	LAST
 	BC	ADD
 	BA	BS
-
+*0001の掛け算の処理
+ONE:	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ST	ACC,[ASH]
+	BA	HLT
 **最終処理
 LAST:	RCF
 	LD	IX,[BGL]
