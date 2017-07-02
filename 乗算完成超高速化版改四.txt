@@ -1,0 +1,120 @@
+*工夫一覧
+**答えを格納するメモリーは手動で初期化
+**SWAPする時は8回以上シフトすると上の桁は必ずオーバーフローするので、小さい方の上の桁は考慮せず、手順を省略
+**IXを小さい方の下の桁で固定しLD/STを省略
+**Bシフトは下をシフト→上をローテートで計算
+**ループを展開しブランチの発生を低減
+**ループの初期ではIXに0が発生する確率が低いことを利用してBZを省き平均速度を向上
+**加算部分をループの上流に置き、そちらへジャンプすることで分岐の省略とプログラム規模を縮小
+**IXが0であった場合、確定で加算処理を行うこととし、
+**計算開始時の加算処理は、ASLが確定で0であることからストアのみとし手順を省略
+**上記手順に合わせ、SWAPにEOR交換アルゴリズムを採用し高速化
+**ほぼ確定で通るBSFの前では分岐を行わないことで高速化
+**最終処理の飛ばす場所を最適化
+
+* 改四でのスコア
+* 03AB x 0025:302[clock]
+* 0025 x 03AB:292[clock]
+
+**ラベル
+*小さい方
+SMH: EQU 80H
+SML: EQU 81H
+*大きい方
+BGH: EQU 82H
+BGL: EQU 83H
+*答えが入る場所
+ASH: EQU 84H
+ASL: EQU 85H
+
+*計算準備
+	LD	ACC,[SMH]
+	LD	IX,[SML]
+*交換判定
+	CMP	ACC,00h
+	BNZ	SWAP
+	LD	ACC,[BGL]
+	BA	ADDF
+*交換
+SWAP:	ST	ACC,[BGH]
+	LD	ACC,[BGL]
+	EOR	ACC,IX
+	EOR	IX,ACC
+	EOR	ACC,IX
+*初回の計算、ASLが0なのでストアのみ
+ADDF:	SRL	IX
+	BNC	BSF
+	ST	ACC,[ASL]
+*初回のBシフト、ロード済みなのでずらす所から
+BSF:	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*0の乗算の計算が狂わないように対策
+	SRL	IX
+	BZ	HLT
+	BNC	BS
+ADD:	RCF
+	LD	ACC,[BGL]
+	ADC	ACC,[ASL]
+	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ADC	ACC,[ASH]
+	ST	ACC,[ASH]
+*Bシフト
+BS:	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*2回目
+	SRL	IX
+	BC	ADD
+*Bシフト2
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*3回目
+	SRL	IX
+	BZ	HLT
+	BC	ADD
+*Bシフト3
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*4回目
+	SRL	IX
+	BZ	LAST
+	BC	ADD
+*Bシフト4
+	LD	ACC,[BGL]
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	RLA	ACC
+	ST	ACC,[BGH]
+*5回目
+	SRL	IX
+	BZ	LAST
+	BC	ADD
+	BA	BS
+
+**最終処理
+LAST:	RCF
+	LD	ACC,[BGL]
+	ADC	ACC,[ASL]
+	ST	ACC,[ASL]
+	LD	ACC,[BGH]
+	ADC	ACC,[ASH]
+	ST	ACC,[ASH]
+HLT:	HLT
+
+END
