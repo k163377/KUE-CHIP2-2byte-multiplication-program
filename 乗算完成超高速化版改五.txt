@@ -1,41 +1,41 @@
-*�H�v�ꗗ
+*工夫一覧
 
-*�v�Z����
-*    �������i�[���郁�����[�͎蓮�ŏ�����
-*    8��ȏ�V�t�g����Ə�̌��͕K���I�[�o�[�t���[����̂ŁA���������̏�̌��͍l�������A�菇���ȗ�
-*    ����̉��Z����ADDF�́AASL���m���0�ł��邱�Ƃ���X�g�A�݂̂Ƃ��菇���ȗ�
-*    ����̃V�t�gBSF��ʂ�\���̍�������A���̕����ł͕�����ȗ�
+*計算準備
+*    答えを格納するメモリーは手動で初期化
+*    8回以上シフトすると上の桁は必ずオーバーフローするので、小さい方の上の桁は考慮せず、手順を省略
+*    初回の加算処理ADDFは、ASLが確定で0であることからストアのみとし手順を省略
+*    初回のシフトBSFを通る可能性の高さから、この部分では分岐を省略
 
-*�v�Z���[�v
-*    IX�����������̉��̌��ŌŒ肵LD/ST���ȗ�
-*    ���[�v��W�J���u�����`�̔�����ጸ
-*    B�V�t�g�͉����V�t�g��������[�e�[�g�Ōv�Z
-*    2��ڂł�IX��0����������m�����Ⴂ���Ƃ𗘗p����BZ���Ȃ����ϑ��x������
-*    2��ڂ�3��ڂŃW�����v�������œK��
-*    ���Z���������[�v�̏㗬�ɒu���A������փW�����v���邱�Ƃŕ���̏ȗ��ƃv���O�����K�͂��k��
+*計算ループ
+*    IXを小さい方の下の桁で固定しLD/STを省略
+*    ループを展開しブランチの発生を低減
+*    Bシフトは下をシフト→上をローテートで計算
+*    2回目ではIXに0が発生する確率が低いことを利用してBZを省き平均速度を向上
+*    2回目と3回目でジャンプする先を最適化
+*    加算部分をループの上流に置き、そちらへジャンプすることで分岐の省略とプログラム規模を縮小
     
-*�ŏI����
-*    IX��0�ł������ꍇ�A�m��ŉ��Z�������s���邱�Ƃ���ŏI�������𓱓���������
-*    ���̍ہABS��̂���ACC�ɂ͊m���BGH��LD����Ă��邱�Ƃ𗘗p��������
+*最終処理
+*    IXが0であった場合、確定で加算処理が行われることから最終処理部を導入し高速化
+*    その際、BS後のためACCには確定でBGHがLDされていることを利用し高速化
 
-* ���܂ł̃X�R�A
-* 03AB x 0025:288[clock]
-* 0025 x 03AB:287[clock]
+* 改五でのスコア
+* 03AB x 0025:297[clock]
+* 0025 x 03AB:296[clock]
 
-**���x��
-*��������
+**ラベル
+*小さい方
 SMH: EQU 80H
 SML: EQU 81H
-*�傫����
+*大きい方
 BGH: EQU 82H
 BGL: EQU 83H
-*����������ꏊ
+*答えが入る場所
 ASH: EQU 84H
 ASL: EQU 85H
 
-*�v�Z����
+*計算準備
 	LD	ACC,[SMH]
-*�ǂݍ��ݐ�̌���
+*読み込み先の決定
 	CMP	ACC,00h
 	BNZ	LD2
 	LD	ACC,[BGL]
@@ -44,18 +44,26 @@ ASL: EQU 85H
 LD2:	ST	ACC,[BGH]
 	LD	ACC,[SML]
 	LD	IX,[BGL]
-*����̌v�Z�AASL��0�Ȃ̂ŃX�g�A�̂�
+*初回の計算、ASLが0なのでストアのみ
 ADDF:	SRL	IX
 	BNC	BSF
+*加算有、BGHの関係でシフトを纏める
 	ST	ACC,[ASL]
-*�����B�V�t�g�A���[�h�ς݂Ȃ̂ł��炷������
+	SLL	ACC
+	ST	ACC,[BGL]
+	LD	ACC,[BGH]
+	ST	ACC,[ASH]
+	RLA	ACC
+	ST	ACC,[BGH]
+	BA	SRHL
+*初回のBシフト、ロード済みなのでずらす所から
 BSF:	SLL	ACC
 	ST	ACC,[BGL]
 	LD	ACC,[BGH]
 	RLA	ACC
 	ST	ACC,[BGH]
-*0��Z�̌v�Z������Ȃ��悤�ɑ΍�
-	SRL	IX
+*0乗算の計算が狂わないように対策
+SRHL:	SRL	IX
 	BZ	HLT
 	BNC	BS
 ADD:	RCF
@@ -65,52 +73,41 @@ ADD:	RCF
 	LD	ACC,[BGH]
 	ADC	ACC,[ASH]
 	ST	ACC,[ASH]
-*B�V�t�g
+*Bシフト
 BS:	LD	ACC,[BGL]
 	SLL	ACC
 	ST	ACC,[BGL]
 	LD	ACC,[BGH]
 	RLA	ACC
 	ST	ACC,[BGH]
-*2���
+*2回目
 	SRL	IX
 	BC	ADD
-*B�V�t�g2
+*Bシフト2
 	LD	ACC,[BGL]
 	SLL	ACC
 	ST	ACC,[BGL]
 	LD	ACC,[BGH]
 	RLA	ACC
 	ST	ACC,[BGH]
-*3���
+*3回目
 	SRL	IX
 	BZ	HLT
 	BC	ADD
-*B�V�t�g3
+*Bシフト3
 	LD	ACC,[BGL]
 	SLL	ACC
 	ST	ACC,[BGL]
 	LD	ACC,[BGH]
 	RLA	ACC
 	ST	ACC,[BGH]
-*4���
-	SRL	IX
-	BZ	LAST
-	BC	ADD
-*B�V�t�g4
-	LD	ACC,[BGL]
-	SLL	ACC
-	ST	ACC,[BGL]
-	LD	ACC,[BGH]
-	RLA	ACC
-	ST	ACC,[BGH]
-*5���
+*4回目
 	SRL	IX
 	BZ	LAST
 	BC	ADD
 	BA	BS
 
-**�ŏI����
+**最終処理
 LAST:	RCF
 	LD	IX,[BGL]
 	ADC	IX,[ASL]
